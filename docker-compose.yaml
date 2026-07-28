@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: pom_pe_db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pom_pe
+
+    ports:
+      
+      - "5432:5432"
+
+    volumes:
+    
+      - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pom_pe"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
+  prisma-studio:
+    image: node:22-alpine
+    container_name: pom_pe_studio
+    working_dir: /app
+    command: npx prisma studio --port 5555 --browser none
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./server:/app
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/pom_pe
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles:
+      # รันเฉพาะเมื่อต้องการ: docker compose --profile studio up
+      - studio
+
+volumes:
+  postgres_data:
+    driver: local

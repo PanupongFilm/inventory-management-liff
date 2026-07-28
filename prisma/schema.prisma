@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id                  String   @id @default(uuid())
+  name                String   @unique
+  purchase_price      Float    
+  selling_price       Float    
+  stock_quantity      Int      @default(0) 
+  promotion_quantity  Int      @default(0) 
+  promotion_price     Float?   
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  orders              Order[]
+  
+  @@index([name])
+}
+
+
+enum PaymentMethod {
+  CASH           
+  SCAN           
+  THAI_HELP     
+}
+
+
+model Order {
+  id              String   @id @default(uuid())
+  productID       String
+  quantity        Int
+  payment_method  PaymentMethod
+  createdAt       DateTime @default(now())
+  isDelivery      Boolean  @default(false)
+  note            String?  // หมายเหตุ
+  
+
+  product         Product  @relation(fields: [productID], references: [id], onDelete: Cascade)
+  
+  @@index([productID])
+  @@index([createdAt])
+}
