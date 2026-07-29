@@ -22,6 +22,7 @@ CREATE TABLE "Order" (
     "productID" TEXT NOT NULL,
     "quantity" INTEGER NOT NULL,
     "payment_method" "PaymentMethod" NOT NULL,
+    "totalAmount" DOUBLE PRECISION NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "isDelivery" BOOLEAN NOT NULL DEFAULT false,
     "note" TEXT,
