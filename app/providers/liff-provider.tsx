@@ -50,8 +50,8 @@ export function LiffProvider({ children }: { children: ReactNode }) {
             isLoggedIn: true,
             userId: profile.userId,
             displayName: profile.displayName,
-            pictureUrl: profile.pictureUrl,
-            statusMessage: profile.statusMessage,
+            pictureUrl: profile.pictureUrl ?? null,
+            statusMessage: profile.statusMessage ?? null,
           }))
         } else {
           // ถ้าไม่ login ใน LINE app ให้ redirect ไปหน้า /order เลย
