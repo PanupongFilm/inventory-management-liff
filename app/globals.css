@@ -2,25 +2,57 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #000000;
+  --card: #f9f9f9;
+  --card-foreground: #171717;
+  --primary: #009688;
+  --primary-foreground: #ffffff;
+  --secondary: #e5e7eb;
+  --secondary-foreground: #171717;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
+  --muted: #f3f4f6;
+  --muted-foreground: #6b7280;
+  --border: #e5e7eb;
+  --input: #f3f4f6;
+  --ring: #009688;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --chart-1: #009688;
+  --chart-2: #009688;
+  --chart-3: #009688;
+  --chart-4: #009688;
+  --chart-5: #009688;
+  color-scheme: light;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-muted: var(--muted);
+  --color-card: var(--card);
+  --color-border: var(--border);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  @apply border-border;
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-background text-foreground;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
+
+
