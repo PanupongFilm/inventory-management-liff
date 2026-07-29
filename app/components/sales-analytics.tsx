@@ -29,31 +29,6 @@ import {
 import { Badge } from "@/app/components/ui/badge"
 import { Separator } from "@/app/components/ui/separator"
 
-// ── Mock API response ─────────────────────────────────────────────────────────
-const MOCK_DATA = {
-  success: true,
-  detail: "Fetch sales analytic successfully",
-  data: {
-    totalQuantitySold: 11,
-    totalCost: 330,
-    totalRevenue: 370,
-    profit: 40,
-    averageSalePerOrder: 123.33333333333333,
-    totalOrders: 3,
-    paymentMethodBreakdown: {
-      CASH: { quantity: 11, revenue: 370, orderCount: 3 },
-    },
-    productBreakdown: {
-      Plus: { quantity: 11, revenue: 370 },
-    },
-    productStock: [
-      { name: "Sky", stock_quantity: 50 },
-      { name: "Ocean", stock_quantity: 50 },
-      { name: "Plus", stock_quantity: 50 },
-    ],
-  },
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function formatCurrency(n: number) {
   return new Intl.NumberFormat("th-TH", {
@@ -538,7 +513,17 @@ export default function SalesAnalytics() {
     to: now,
   })
   const [isLoading, setIsLoading] = React.useState(false)
-  const [data, setData] = React.useState(MOCK_DATA.data)
+  const [data, setData] = React.useState({
+    totalQuantitySold: 0,
+    totalCost: 0,
+    totalRevenue: 0,
+    profit: 0,
+    averageSalePerOrder: 0,
+    totalOrders: 0,
+    paymentMethodBreakdown: {},
+    productBreakdown: {},
+    productStock: [],
+  })
 
   const fetchAnalytics = React.useCallback(async () => {
     setIsLoading(true)
