@@ -1,8 +1,8 @@
 import { z } from 'zod'
 
 export const AnalyticQuerySchema = z.object({
-  startDate: z.string().datetime().optional().nullable(),
-  endDate: z.string().datetime().optional().nullable(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
 })
 
 export type AnalyticQuery = z.infer<typeof AnalyticQuerySchema>
