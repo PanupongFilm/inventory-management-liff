@@ -42,8 +42,7 @@ export class AnalyticService {
         }
       });
 
-
-      return { aggregateData, orders }
+      return { aggregateData, orders, productStock }
     })
 
     const totalQuantitySold = result.aggregateData._sum.quantity || 0
@@ -92,7 +91,7 @@ export class AnalyticService {
       totalOrders,
       paymentMethodBreakdown,
       productBreakdown,
-      productStock
+      productStock: result.productStock
     }
   }
 }
