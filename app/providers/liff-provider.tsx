@@ -54,6 +54,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
             statusMessage: profile.statusMessage,
           }))
         } else {
+          // ถ้าไม่ login ใน LINE app ให้ redirect ไปหน้า /order เลย
           setState(prev => ({
             ...prev,
             isInitialized: true,
@@ -70,7 +71,10 @@ export function LiffProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    initLiff()
+    // ต้องมั่นใจว่า script โหลดมาแล้ว
+    if (typeof window !== 'undefined') {
+      initLiff()
+    }
   }, [])
 
   return <LiffContext.Provider value={state}>{children}</LiffContext.Provider>
