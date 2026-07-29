@@ -18,26 +18,66 @@ export class AnalyticService {
       }
     }
 
-    if (query.paymentMethod) {
-      where.payment_method = query.paymentMethod
-    }
+    const result = await prisma.$transaction(async (tx) => {
+      const aggregateData = await tx.order.aggregate({
+        where,
+        _sum: {
+          quantity: true,
+          totalAmount: true,
+        },
+        _count: true,
+      })
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        product: true,
-      },
-    });
+      const orders = await tx.order.findMany({
+        where,
+        include: {
+          product: true,
+        },
+      })
 
-    let cost;
-    let profit;
+      return { aggregateData, orders }
+    })
 
+    const totalQuantitySold = result.aggregateData._sum.quantity || 0
+    const totalRevenue = result.aggregateData._sum.totalAmount || 0
+    const totalOrders = result.aggregateData._count
 
+    let paymentMethodBreakdown: any = {}
+    let productBreakdown: any = {}
 
-    const averageSalePerOrder = orders.length > 0 ? totalRevenue / orders.length : 0
+    result.orders.forEach((order) => {
+      const paymentMethod = order.payment_method
+      if (!paymentMethodBreakdown[paymentMethod]) {
+        paymentMethodBreakdown[paymentMethod] = {
+          quantity: 0,
+          revenue: 0,
+          orderCount: 0,
+        }
+      }
+      paymentMethodBreakdown[paymentMethod].quantity += order.quantity
+      paymentMethodBreakdown[paymentMethod].revenue += order.totalAmount
+      paymentMethodBreakdown[paymentMethod].orderCount += 1
+
+      const productName = order.product.name
+      if (!productBreakdown[productName]) {
+        productBreakdown[productName] = {
+          quantity: 0,
+          revenue: 0,
+        }
+      }
+      productBreakdown[productName].quantity += order.quantity
+      productBreakdown[productName].revenue += order.totalAmount
+    })
+
+    const averageSalePerOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
     return {
-    
+      totalQuantitySold,
+      totalRevenue,
+      averageSalePerOrder,
+      totalOrders,
+      paymentMethodBreakdown,
+      productBreakdown,
     }
   }
 }

@@ -52,16 +52,21 @@ export class OrderService {
     }
 
     let totalAmount = 0
+
     if (product.promotion_quantity !== 0 && product.promotion_price) {
+
       const promotionCheck = data.quantity % product.promotion_quantity
 
       if (promotionCheck === 0) {
-        totalAmount = product.promotion_price * (data.quantity / product.promotion_quantity)
+        totalAmount = product.promotion_price * (data.quantity / product.promotion_quantity);
+
       } else {
-        const promotionAmount = (data.quantity - promotionCheck) * product.promotion_price
-        const withoutPromotionAmount = promotionCheck * product.selling_price
-        totalAmount = promotionAmount + withoutPromotionAmount
+        const withoutPromotionAmount = promotionCheck * product.selling_price;
+        const promotionAmount = ((data.quantity - promotionCheck) / product.promotion_quantity) * product.promotion_price;
+        totalAmount = withoutPromotionAmount + promotionAmount;
       }
+
+
     } else {
       totalAmount = data.quantity * product.selling_price
     }

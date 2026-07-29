@@ -10,12 +10,10 @@ export class AnalyticController {
       const { searchParams } = new URL(req.url)
       const startDate = searchParams.get('startDate')
       const endDate = searchParams.get('endDate')
-      const paymentMethod = searchParams.get('paymentMethod')
 
       const query = AnalyticQuerySchema.parse({
         startDate,
         endDate,
-        paymentMethod,
       })
 
       const analytic = await AnalyticService.getSalesAnalytic(query)
