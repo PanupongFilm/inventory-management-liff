@@ -17,6 +17,7 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
+    "@line/liff": "^2.28.0",
     "@prisma/client": "^5.20.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
