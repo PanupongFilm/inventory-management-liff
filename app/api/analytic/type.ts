@@ -9,7 +9,9 @@ export type AnalyticQuery = z.infer<typeof AnalyticQuerySchema>
 
 export interface SalesAnalytic {
   totalQuantitySold: number
+  totalCost: number
   totalRevenue: number
+  profit: number
   averageSalePerOrder: number
   totalOrders: number
   paymentMethodBreakdown: {
@@ -25,4 +27,8 @@ export interface SalesAnalytic {
       revenue: number
     }
   }
+  productStock: Array<{
+    name: string
+    stock_quantity: number
+  }>
 }

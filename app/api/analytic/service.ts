@@ -35,6 +35,14 @@ export class AnalyticService {
         },
       })
 
+      const productStock = await tx.product.findMany({
+        select:{
+          name: true,
+          stock_quantity: true
+        }
+      });
+
+
       return { aggregateData, orders }
     })
 
@@ -44,6 +52,7 @@ export class AnalyticService {
 
     let paymentMethodBreakdown: any = {}
     let productBreakdown: any = {}
+    let totalCost = 0;
 
     result.orders.forEach((order) => {
       const paymentMethod = order.payment_method
@@ -67,17 +76,23 @@ export class AnalyticService {
       }
       productBreakdown[productName].quantity += order.quantity
       productBreakdown[productName].revenue += order.totalAmount
+
+      totalCost += order.product.purchase_price * order.quantity
     })
 
+    const profit = totalRevenue - totalCost
     const averageSalePerOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
 
     return {
       totalQuantitySold,
+      totalCost,
       totalRevenue,
+      profit,
       averageSalePerOrder,
       totalOrders,
       paymentMethodBreakdown,
       productBreakdown,
+      productStock
     }
   }
 }
