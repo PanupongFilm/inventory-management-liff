@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { OrderService } from './service'
-import { CreateOrderSchema, UpdateOrderSchema } from './type'
+import { CreateOrderSchema } from './type'
 
 export class OrderController {
 
@@ -91,68 +91,6 @@ export class OrderController {
       console.error('Error creating order:', error)
       return NextResponse.json(
         { error: 'Failed to create order' },
-        { status: 500 }
-      )
-    }
-  }
-
-  static async update(req: NextRequest) {
-    try {
-      const { searchParams } = new URL(req.url)
-      const id = searchParams.get('id')
-
-      if (!id) {
-        return NextResponse.json(
-          { error: 'Order ID required' },
-          { status: 400 }
-        )
-      }
-
-      let body
-      try {
-        body = await req.json()
-      } catch (e) {
-        return NextResponse.json(
-          { error: 'Invalid or empty JSON body' },
-          { status: 400 }
-        )
-      }
-
-      const validated = UpdateOrderSchema.parse(body)
-      const order = await OrderService.updateOrder(id, validated)
-
-      return NextResponse.json(
-        {
-          success: true,
-          detail: 'Update order successfully',
-          data: order,
-        },
-        { status: 200 }
-      )
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return NextResponse.json(
-          { error: 'Validation error', details: error.errors },
-          { status: 400 }
-        )
-      }
-      if (error instanceof Error) {
-        if (error.message.includes('not found')) {
-          return NextResponse.json(
-            { error: error.message },
-            { status: 404 }
-          )
-        }
-        if (error.message.includes('Insufficient stock')) {
-          return NextResponse.json(
-            { error: error.message },
-            { status: 400 }
-          )
-        }
-      }
-      console.error('Error updating order:', error)
-      return NextResponse.json(
-        { error: 'Failed to update order' },
         { status: 500 }
       )
     }

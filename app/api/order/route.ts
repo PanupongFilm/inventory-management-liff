@@ -9,10 +9,6 @@ export async function POST(req: NextRequest) {
   return OrderController.create(req)
 }
 
-export async function PUT(req: NextRequest) {
-  return OrderController.update(req)
-}
-
 export async function DELETE(req: NextRequest) {
   return OrderController.delete(req)
 }

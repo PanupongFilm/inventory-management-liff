@@ -11,13 +11,3 @@ export const CreateOrderSchema = z.object({
 })
 
 export type CreateOrderRequest = z.infer<typeof CreateOrderSchema>
-
-export const UpdateOrderSchema = z.object({
-  productID: z.string().uuid().optional(),
-  quantity: z.number().int().positive().optional(),
-  payment_method: PaymentMethodEnum.optional(),
-  isDelivery: z.boolean().optional(),
-  note: z.string().optional(),
-})
-
-export type UpdateOrderRequest = z.infer<typeof UpdateOrderSchema>
