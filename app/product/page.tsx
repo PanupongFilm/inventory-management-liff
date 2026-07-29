@@ -131,6 +131,7 @@ export default function ProductPage() {
         formData.promotion_quantity !== undefined &&
         formData.promotion_quantity > 0 &&
         formData.promotion_price !== undefined &&
+        formData.promotion_price !== null &&
         formData.promotion_price > 0
       ) {
         dataToSend.promotion_quantity = formData.promotion_quantity
