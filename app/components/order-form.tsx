@@ -120,22 +120,27 @@ export default function OrderForm() {
       setSubmitting(true)
       setError(null)
 
+      const payload: any = {
+        productID: formData.productId,
+        quantity: formData.quantity,
+        payment_method: formData.paymentMethod,
+        isDelivery: formData.isDelivery ?? false,
+      }
+
+      // Only include note if it has a value
+      if (formData.note && formData.note.trim()) {
+        payload.note = formData.note.trim()
+      }
+
       const response = await fetch('/api/order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          productID: formData.productId,
-          quantity: formData.quantity,
-          payment_method: formData.paymentMethod,
-          isDelivery: formData.isDelivery,
-          note: formData.note || null,
-          totalAmount,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create order')
+        throw new Error(errorData.error || errorData.message || 'Failed to create order')
       }
 
       // Show success modal
@@ -445,30 +450,21 @@ export default function OrderForm() {
           </Card>
 
           {/* Submit Button */}
-          <div className="flex gap-2 sm:gap-3 pt-4 flex-col sm:flex-row sticky bottom-0 bg-white pb-4 -mx-3 sm:-mx-4 md:-mx-8 px-3 sm:px-4 md:px-8">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => router.back()}
-              className="flex-1 border-green-200 text-green-700 hover:bg-green-50 text-sm sm:text-base"
-            >
-              ยกเลิก
-            </Button>
+          <div className="pt-4 sticky bottom-0 bg-white pb-4 -mx-3 sm:-mx-4 md:-mx-8 px-3 sm:px-4 md:px-8">
             <Button
               type="submit"
               disabled={submitting || !formData.productId}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold text-sm sm:text-base whitespace-nowrap"
+              className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold text-sm sm:text-base"
             >
               {submitting ? (
                 <div className="flex items-center justify-center gap-2">
                   <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-                  <span className="hidden sm:inline">กำลังสร้าง...</span>
+                  <span>กำลังสร้าง...</span>
                 </div>
               ) : (
                 <div className="flex items-center justify-center gap-2">
                   <ShoppingCart className="w-4 h-4 flex-shrink-0" />
-                  <span className="hidden sm:inline">สร้างออร์เดอร์</span>
-                  <span className="sm:hidden">สร้าง</span>
+                  <span>สร้างออร์เดอร์</span>
                 </div>
               )}
             </Button>
