@@ -269,7 +269,7 @@ export default function ProductPage() {
                       <CardTitle className="text-base sm:text-lg text-gray-900 truncate">{product.name}</CardTitle>
                     </div>
                     <Badge className="bg-green-100 text-green-800 text-xs font-semibold flex-shrink-0 whitespace-nowrap">
-                      {product.stock_quantity}
+                      คงเหลือ {product.stock_quantity} แพ็ค
                     </Badge>
                   </div>
                 </CardHeader>
