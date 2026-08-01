@@ -27,6 +27,7 @@ interface Product {
   stock_quantity: number
   promotion_quantity: number
   promotion_price: number | null
+  isActive: boolean
 }
 
 interface FormData {
@@ -60,6 +61,7 @@ export default function ProductPage() {
   const [formData, setFormData] = useState<FormData>(initialFormData)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProducts()
@@ -198,6 +200,28 @@ export default function ProductPage() {
     }
   }
 
+  const handleToggleActive = async (product: Product) => {
+    try {
+      setTogglingId(product.id)
+      setError(null)
+      const response = await fetch(`/api/product?id=${product.id}`, {
+        method: 'PUT',
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || errorData.error || 'Failed to toggle product')
+      }
+
+      await fetchProducts()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
+      console.error(err)
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
@@ -258,82 +282,169 @@ export default function ProductPage() {
           />
         </div>
 
-        {/* Products Grid */}
-        {filteredProducts.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {filteredProducts.map(product => (
-              <Card key={product.id} className="border-gray-200 hover:shadow-lg transition-all overflow-hidden flex flex-col">
-                <CardHeader className="bg-white/0 from-green-50 to-emerald-50 border-b border-green-100 pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-base sm:text-lg text-gray-900 truncate">{product.name}</CardTitle>
-                    </div>
-                    <Badge className="bg-green-100 text-green-800 text-xs font-semibold flex-shrink-0 whitespace-nowrap">
-                      คงเหลือ {product.stock_quantity} แพ็ค
-                    </Badge>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-4 space-y-3 flex-1 flex flex-col">
-                  {/* Price Info */}
-                  <div className="space-y-2 pb-3 border-b border-gray-100">
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="text-gray-600 flex items-center gap-1">
-                        <Tag className="w-3.5 h-3.5" />
-                        ต้นทุน:
-                      </span>
-                      <span className="font-semibold text-gray-900">
-                        ฿{product.purchase_price.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
-                      <span className="text-gray-600 flex items-center gap-1">
-                        <DollarSign className="w-3.5 h-3.5" />
-                        ขาย:
-                      </span>
-                      <span className="font-semibold text-green-600">
-                        ฿{product.selling_price.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Promotion Info */}
-                  {product.promotion_quantity > 0 && product.promotion_price && (
-                    <div className="bg-blue-50 rounded-lg p-2.5 border border-blue-100">
-                      <div className="flex items-center gap-1 mb-1">
-                        <Zap className="w-3.5 h-3.5 text-blue-600" />
-                        <span className="text-xs font-bold text-blue-900">พิเศษ</span>
+        {/* Active Products Section */}
+        {filteredProducts.filter(p => p.isActive).length > 0 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-green-600"></div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">สินค้าที่วางขายอยู่</h2>
+              <span className="ml-auto text-sm text-gray-500">
+                ({filteredProducts.filter(p => p.isActive).length})
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              {filteredProducts.filter(p => p.isActive).map(product => (
+                <Card key={product.id} className="border-green-200 hover:shadow-lg transition-all overflow-hidden flex flex-col bg-white">
+                  <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100 pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm sm:text-base text-gray-900 truncate">{product.name}</CardTitle>
                       </div>
-                      <div className="text-xs font-semibold text-blue-900">
-                        {product.promotion_quantity} แพ็ค {product.promotion_price.toLocaleString()} บาท
+                      <Badge className="bg-green-100 text-green-800 text-xs font-semibold flex-shrink-0 whitespace-nowrap">
+                        คงเหลือ {product.stock_quantity}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="pt-3 space-y-2 flex-1 flex flex-col">
+                    {/* Price Info */}
+                    <div className="space-y-1 pb-2 border-b border-gray-100">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="text-gray-600">ต้นทุน:</span>
+                        <span className="font-semibold text-gray-900">
+                          ฿{product.purchase_price.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="text-gray-600">ขาย:</span>
+                        <span className="font-semibold text-green-600">
+                          ฿{product.selling_price.toLocaleString()}
+                        </span>
                       </div>
                     </div>
-                  )}
 
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-2 mt-auto">
-                    <Button
-                      onClick={() => handleOpenEditModal(product)}
-                      variant="outline"
-                      className="flex-1 border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
-                    >
-                      <Edit2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline">แก้ไข</span>
-                    </Button>
-                    <Button
-                      onClick={() => handleOpenDeleteModal(product)}
-                      variant="outline"
-                      className="flex-1 border-red-200 text-red-700 hover:bg-red-50 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      <span className="hidden sm:inline">ลบ</span>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    {/* Promotion Info */}
+                    {product.promotion_quantity > 0 && product.promotion_price && (
+                      <div className="bg-blue-50 rounded-lg p-2 border border-blue-100">
+                        <div className="text-xs font-bold text-blue-900">
+                          {product.promotion_quantity} แพ็ค {product.promotion_price.toLocaleString()} บาท
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-2 mt-auto">
+                      <Button
+                        onClick={() => handleOpenEditModal(product)}
+                        variant="outline"
+                        className="flex-1 border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
+                      >
+                        <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <span className="hidden sm:inline">แก้ไข</span>
+                      </Button>
+                      <Button
+                        onClick={() => handleToggleActive(product)}
+                        disabled={togglingId === product.id}
+                        className="flex-1 bg-green-100 text-green-800 hover:bg-green-200 border border-green-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 font-semibold"
+                      >
+                        {togglingId === product.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" />
+                            <span>กำลัง...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-green-600"></span>
+                            <span>เปิดใช้งาน</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
-        ) : (
+        )}
+
+        {/* Inactive Products Section */}
+        {filteredProducts.filter(p => !p.isActive).length > 0 && (
+          <div className="space-y-4 pt-6 border-t-2 border-gray-200">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+              <h2 className="text-lg sm:text-xl font-bold text-gray-600">สินค้าที่เลิกขายแล้ว</h2>
+              <span className="ml-auto text-sm text-gray-500">
+                ({filteredProducts.filter(p => !p.isActive).length})
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 opacity-60">
+              {filteredProducts.filter(p => !p.isActive).map(product => (
+                <Card key={product.id} className="border-gray-200 hover:shadow-lg transition-all overflow-hidden flex flex-col bg-gray-50">
+                  <CardHeader className="bg-gradient-to-r from-gray-100 to-gray-100 border-b border-gray-200 pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm sm:text-base text-gray-600 truncate line-through">{product.name}</CardTitle>
+                      </div>
+                      <Badge className="bg-gray-300 text-gray-700 text-xs font-semibold flex-shrink-0 whitespace-nowrap">
+                        คงเหลือ {product.stock_quantity}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="pt-3 space-y-2 flex-1 flex flex-col">
+                    {/* Price Info */}
+                    <div className="space-y-1 pb-2 border-b border-gray-200">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="text-gray-500">ต้นทุน:</span>
+                        <span className="font-semibold text-gray-600">
+                          ฿{product.purchase_price.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
+                        <span className="text-gray-500">ขาย:</span>
+                        <span className="font-semibold text-gray-600">
+                          ฿{product.selling_price.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-2 mt-auto">
+                      <Button
+                        onClick={() => handleOpenEditModal(product)}
+                        variant="outline"
+                        className="flex-1 border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
+                      >
+                        <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                        <span className="hidden sm:inline">แก้ไข</span>
+                      </Button>
+                      <Button
+                        onClick={() => handleToggleActive(product)}
+                        disabled={togglingId === product.id}
+                        className="flex-1 bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 font-semibold"
+                      >
+                        {togglingId === product.id ? (
+                          <>
+                            <Loader2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" />
+                            <span>กำลัง...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2 h-2 rounded-full bg-gray-600"></span>
+                            <span>ปิดใช้งาน</span>
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* No Products */}
+        {filteredProducts.length === 0 && (
           <Card className="border-gray-200 bg-gray-50">
             <CardContent className="pt-12 pb-12 text-center">
               <Package className="w-12 h-12 text-gray-300 mx-auto mb-3" />

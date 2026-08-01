@@ -178,4 +178,41 @@ export class ProductController {
       )
     }
   }
+
+  static async toggleActive(req: NextRequest) {
+    try {
+      const { searchParams } = new URL(req.url)
+      const id = searchParams.get('id')
+
+      if (!id) {
+        return NextResponse.json(
+          { error: 'Product ID required' },
+          { status: 400 }
+        )
+      }
+
+      const product = await ProductService.toggleProductActive(id)
+
+      return NextResponse.json(
+        {
+          success: true,
+          detail: "Toggle product active status successfully",
+          data: product,
+        },
+        { status: 200 }
+      )
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('not found')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 404 }
+        )
+      }
+      console.error('Error toggling product active:', error)
+      return NextResponse.json(
+        { error: 'Failed to toggle product active' },
+        { status: 500 }
+      )
+    }
+  }
 }

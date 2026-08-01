@@ -28,6 +28,7 @@ interface Product {
   selling_price: number
   promotion_price?: number | null
   promotion_quantity: number
+  isActive: boolean
 }
 
 interface OrderFormData {
@@ -83,9 +84,11 @@ export default function OrderForm() {
   }
 
   const selectedProduct = products.find(p => p.id === formData.productId)
-  const filteredProducts = products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredProducts = products
+    .filter(p => p.isActive)
+    .filter(p =>
+      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+    )
 
   const calculateTotalAmount = () => {
     if (!selectedProduct) return 0
@@ -231,7 +234,7 @@ export default function OrderForm() {
               </div>
 
               {/* Product Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 max-h-96 overflow-y-auto">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3 max-h-96 overflow-y-auto">
                 {filteredProducts.length > 0 ? (
                   filteredProducts.map(product => (
                     <button
@@ -241,46 +244,34 @@ export default function OrderForm() {
                         setFormData(prev => ({ ...prev, productId: product.id, quantity: 1 }))
                         setSearchTerm('')
                       }}
-                      className={`p-3 text-left rounded-lg border-2 transition-all ${
+                      className={`p-3 text-left rounded-lg border-2 transition-all flex flex-col ${
                         formData.productId === product.id
                           ? 'border-green-500 bg-green-50'
                           : 'border-gray-200 hover:border-green-300 bg-white'
                       }`}
                     >
-                      <div className="flex items-start justify-between mb-2">
-                        <p className="font-semibold text-sm sm:text-base text-gray-900">{product.name}</p>
+                      <div className="flex items-start justify-between mb-1">
+                        <p className="font-semibold text-xs sm:text-sm text-gray-900 line-clamp-2">{product.name}</p>
                         {formData.productId === product.id && (
-                          <Check className="w-4 sm:w-5 h-4 sm:h-5 text-green-600 flex-shrink-0" />
+                          <Check className="w-3 sm:w-4 h-3 sm:h-4 text-green-600 flex-shrink-0 ml-1" />
                         )}
                       </div>
-                      <div className="space-y-1 text-xs sm:text-sm">
-                        <div className="flex justify-between">
-                          <span className="text-gray-600">ราคา:</span>
-                          <div className="font-medium text-gray-900">
-                            {product.promotion_quantity > 0 && product.promotion_price ? (
-                              <div className="text-right space-y-0.5">
-                                <div className="text-sm text-gray-500">฿{product.selling_price.toLocaleString()}/แพ็ค</div>
-                                <div className="text-green-600 font-bold">
-                                  {product.promotion_quantity} แพ็ค {product.promotion_price.toLocaleString()} บาท
-                                </div>
-                              </div>
-                            ) : (
-                              <span>฿{product.selling_price.toLocaleString()}/แพ็ค</span>
-                            )}
-                          </div>
+                      <div className="space-y-0.5 text-xs flex-1 flex flex-col">
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600">฿:</span>
+                          <span className="font-medium text-gray-900">
+                            {product.selling_price.toLocaleString()}
+                          </span>
                         </div>
                         <div className="flex justify-between items-center">
                           <span className="text-gray-600">คงเหลือ:</span>
-                          <div className="flex items-center gap-1 sm:gap-2">
-                            <span className="font-medium text-gray-900">{product.stock_quantity} แพ็ค</span>
-                            {product.stock_quantity < 5 && product.stock_quantity > 0 && (
-                              <Badge className="bg-orange-100 text-orange-800 text-xs">ใกล้หมด</Badge>
-                            )}
-                            {product.stock_quantity === 0 && (
-                              <Badge className="bg-red-100 text-red-800 text-xs">หมด</Badge>
-                            )}
-                          </div>
+                          <span className="font-medium text-gray-900">{product.stock_quantity}</span>
                         </div>
+                        {product.promotion_quantity > 0 && product.promotion_price && (
+                          <div className="bg-green-50 -mx-3 -mb-3 mt-auto px-2 py-1 rounded text-green-700 font-bold text-xs">
+                            {product.promotion_quantity}แพ็ค {product.promotion_price.toLocaleString()}฿
+                          </div>
+                        )}
                       </div>
                     </button>
                   ))

@@ -64,4 +64,19 @@ export class ProductService {
       where: { id },
     })
   }
+
+  static async toggleProductActive(id: string) {
+    const product = await prisma.product.findUnique({
+      where: { id },
+    })
+
+    if (!product) {
+      throw new Error(`Product with ID "${id}" not found`)
+    }
+
+    return await prisma.product.update({
+      where: { id },
+      data: { isActive: !product.isActive },
+    })
+  }
 }
