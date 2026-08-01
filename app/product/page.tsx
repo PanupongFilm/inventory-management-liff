@@ -333,11 +333,11 @@ export default function ProductPage() {
                     )}
 
                     {/* Actions */}
-                    <div className="flex gap-2 pt-2 mt-auto">
+                    <div className="flex gap-2 pt-2 mt-auto justify-center">
                       <Button
                         onClick={() => handleOpenEditModal(product)}
                         variant="outline"
-                        className="flex-1 border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
+                        className="border-green-200 text-green-700 hover:bg-green-50 flex items-center justify-center gap-1 text-xs sm:text-sm py-2 px-3"
                       >
                         <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span className="hidden sm:inline">แก้ไข</span>
@@ -345,7 +345,7 @@ export default function ProductPage() {
                       <Button
                         onClick={() => handleToggleActive(product)}
                         disabled={togglingId === product.id}
-                        className="flex-1 bg-green-100 text-green-800 hover:bg-green-200 border border-green-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 font-semibold"
+                        className="bg-green-100 text-green-800 hover:bg-green-200 border border-green-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 px-3 font-semibold"
                       >
                         {togglingId === product.id ? (
                           <>
@@ -355,7 +355,7 @@ export default function ProductPage() {
                         ) : (
                           <>
                             <span className="w-2 h-2 rounded-full bg-green-600"></span>
-                            <span>เปิดใช้งาน</span>
+                            <span className="whitespace-nowrap">เปิดใช้งาน</span>
                           </>
                         )}
                       </Button>
@@ -409,11 +409,11 @@ export default function ProductPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 pt-2 mt-auto">
+                    <div className="flex gap-2 pt-2 mt-auto justify-center">
                       <Button
                         onClick={() => handleOpenEditModal(product)}
                         variant="outline"
-                        className="flex-1 border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center justify-center gap-1 text-xs sm:text-sm py-2"
+                        className="border-gray-300 text-gray-600 hover:bg-gray-100 flex items-center justify-center gap-1 text-xs sm:text-sm py-2 px-3"
                       >
                         <Edit2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                         <span className="hidden sm:inline">แก้ไข</span>
@@ -421,7 +421,7 @@ export default function ProductPage() {
                       <Button
                         onClick={() => handleToggleActive(product)}
                         disabled={togglingId === product.id}
-                        className="flex-1 bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 font-semibold"
+                        className="bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300 flex items-center justify-center gap-2 text-xs sm:text-sm py-2 px-3 font-semibold"
                       >
                         {togglingId === product.id ? (
                           <>
@@ -431,7 +431,7 @@ export default function ProductPage() {
                         ) : (
                           <>
                             <span className="w-2 h-2 rounded-full bg-gray-600"></span>
-                            <span>ปิดใช้งาน</span>
+                            <span className="whitespace-nowrap">ปิดใช้งาน</span>
                           </>
                         )}
                       </Button>
