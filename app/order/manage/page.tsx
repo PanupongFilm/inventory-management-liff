@@ -1,17 +1,27 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays } from 'date-fns'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/card'
 import { Badge } from '@/app/components/ui/badge'
 import { Modal } from '@/app/components/ui/modal'
+import { Calendar } from '@/app/components/ui/calendar'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/app/components/ui/popover'
+import { Separator } from '@/app/components/ui/separator'
+import { cn } from '@/app/lib/utils'
+import type { DateRange } from 'react-day-picker'
 import {
   Trash2,
   Search,
   Loader2,
   AlertCircle,
   ShoppingCart,
-  Calendar,
+  CalendarIcon,
   Package,
   DollarSign,
   Truck,
@@ -50,8 +60,94 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   THAI_HELP: 'ไทยช่วยไทย',
 }
 
+function DateRangePicker({
+  date,
+  onDateChange,
+}: {
+  date: DateRange | undefined
+  onDateChange: (range: DateRange | undefined) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  const label = date?.from
+    ? date?.to && date?.from !== date?.to
+      ? `${format(date.from, 'd MMM yyyy')} — ${format(date.to, 'd MMM yyyy')}`
+      : format(date.from, 'd MMM yyyy')
+    : 'เลือกช่วงวันที่'
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={cn(
+            "h-11 w-full sm:w-auto justify-start gap-2.5 rounded-lg border-emerald-200 bg-white hover:bg-emerald-50 px-4",
+            "font-medium text-foreground",
+            !date && "text-muted-foreground"
+          )}
+        >
+          <CalendarIcon className="size-4 shrink-0 text-emerald-600" />
+          <span className="truncate text-sm">{label}</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0 border-emerald-200 bg-white shadow-lg" align="start" side="bottom">
+        <div className="p-4">
+          <Calendar
+            mode="range"
+            defaultMonth={date?.from}
+            selected={date}
+            onSelect={onDateChange}
+            numberOfMonths={1}
+            className="rounded-lg"
+          />
+        </div>
+        <Separator className="bg-emerald-100" />
+        <div className="flex gap-2 p-3">
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 text-xs border-emerald-200 hover:bg-emerald-50"
+            onClick={() => {
+              const now = new Date()
+              onDateChange({ from: startOfMonth(now), to: endOfMonth(now) })
+              setOpen(false)
+            }}
+          >
+            เดือนนี้
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="flex-1 text-xs border-emerald-200 hover:bg-emerald-50"
+            onClick={() => {
+              const now = new Date()
+              onDateChange({ from: subDays(now, 6), to: now })
+              setOpen(false)
+            }}
+          >
+            7 วันล่าสุด
+          </Button>
+          <Button
+            size="sm"
+            className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+            onClick={() => setOpen(false)}
+          >
+            เสร็จสิ้น
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function OrderManagePage() {
+  const now = new Date()
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: now,
+    to: now,
+  })
   const [orders, setOrders] = useState<Order[]>([])
+  const [allOrders, setAllOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -72,7 +168,7 @@ export default function OrderManagePage() {
       const response = await fetch('/api/order')
       if (!response.ok) throw new Error('Failed to fetch orders')
       const data = await response.json()
-      setOrders(data.data || [])
+      setAllOrders(data.data || [])
     } catch (err) {
       setError('ไม่สามารถโหลดรายการสั่งซื้อ')
       console.error(err)
@@ -80,6 +176,24 @@ export default function OrderManagePage() {
       setLoading(false)
     }
   }
+
+  // Filter orders based on date range
+  useEffect(() => {
+    if (!dateRange?.from || !dateRange?.to) {
+      setOrders(allOrders)
+      return
+    }
+
+    const startDate = startOfDay(dateRange.from)
+    const endDate = endOfDay(dateRange.to)
+
+    const filteredOrders = allOrders.filter(order => {
+      const orderDate = new Date(order.createdAt)
+      return orderDate >= startDate && orderDate <= endDate
+    })
+
+    setOrders(filteredOrders)
+  }, [dateRange, allOrders])
 
   const filteredOrders = orders.filter(order =>
     order.product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -156,21 +270,42 @@ export default function OrderManagePage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-3 sm:p-4 md:p-8 pb-8">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <div className="flex items-center gap-2 sm:gap-3 mb-2">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
-                <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
-              </div>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">จัดการออร์เดอร์</h1>
+        <div className="flex flex-col gap-4 mb-8">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+              <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
             </div>
-            <p className="text-sm sm:text-base text-gray-600">ดู แก้ไข และลบออร์เดอร์</p>
+            <div>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">จัดการออร์เดอร์</h1>
+              <p className="text-sm sm:text-base text-gray-600">ดู แก้ไข และลบออร์เดอร์</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-600">รวมทั้งหมด</p>
-            <p className="text-2xl sm:text-3xl font-bold text-green-600">{orders.length}</p>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm text-gray-600">จำนวนแพคทั้งหมด</p>
+              <p className="text-2xl sm:text-3xl font-bold text-blue-600">{orders.reduce((sum, order) => sum + order.quantity, 0)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-600">จำนวน Order</p>
+              <p className="text-2xl sm:text-3xl font-bold text-green-600">{orders.length}</p>
+            </div>
           </div>
         </div>
+
+        {/* Date Picker */}
+        <section>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-2">
+            <label className="text-sm font-medium text-gray-700">ช่วงเวลาที่ดูข้อมูล:</label>
+            <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+          </div>
+          <p className="text-xs text-gray-600">
+            {dateRange?.from && dateRange?.to
+              ? `${format(dateRange.from, 'd MMMM yyyy')} — ${format(dateRange.to, 'd MMMM yyyy')}`
+              : 'กรุณาเลือกช่วงวันที่'}
+          </p>
+        </section>
+
+        <Separator className="bg-gray-200" />
 
         {/* Error Alert */}
         {error && (
