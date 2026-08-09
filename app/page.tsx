@@ -1,5 +1,5 @@
-import SalesAnalytics from "@/app/components/sales-analytics"
+import OrderForm from "@/app/components/order-form"
 
 export default function Home() {
-  return <SalesAnalytics />
+  return <OrderForm />
 }

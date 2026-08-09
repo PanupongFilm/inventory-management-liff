@@ -1,10 +1,10 @@
-import OrderForm from "@/app/components/order-form"
+import SalesAnalytics from "@/app/components/sales-analytics"
 
 export const metadata = {
-  title: "สร้างออร์เดอร์ใหม่",
-  description: "Create a new order",
+  title: "รายงานกำไร",
+  description: "Sales analytics and profit report",
 }
 
-export default function OrderPage() {
-  return <OrderForm />
+export default function AnalyticsPage() {
+  return <SalesAnalytics />
 }

@@ -76,7 +76,13 @@ export class AnalyticService {
       productBreakdown[productName].quantity += order.quantity
       productBreakdown[productName].revenue += order.totalAmount
 
-      totalCost += order.product.purchase_price * order.quantity
+      // ใช้ totalCost ที่เก็บไว้ หรือคำนวณจากราคาปัจจุบันถ้าไม่มี (Order เก่า)
+      if (order.totalCost != null) {
+        totalCost += order.totalCost
+      } else {
+        // Fallback สำหรับ Order เก่าที่ไม่มี totalCost
+        totalCost += order.product.purchase_price * order.quantity
+      }
     })
 
     const profit = totalRevenue - totalCost

@@ -11,7 +11,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "migrate:backfill-cost": "tsx scripts/backfill-order-cost.ts"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -43,6 +44,7 @@
     "prisma": "^5.20.0",
     "tailwindcss": "^4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.2",
     "typescript": "^5"
   }
 }

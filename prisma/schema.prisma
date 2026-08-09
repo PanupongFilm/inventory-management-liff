@@ -39,10 +39,23 @@ model Order {
   productID       String
   quantity        Int
   payment_method  PaymentMethod
-  totalAmount     Float
-  createdAt       DateTime @default(now())
-  isDelivery      Boolean  @default(false)
-  note            String?  // หมายเหตุ
+  
+  // Snapshot
+  unit_cost           Float?   // ราคาต้นทุนต่อหน่วยขณะขาย
+  unit_price          Float?   // ราคาขายต่อหน่วยขณะขาย (เฉลี่ยหลังโปร)
+  selling_price       Float?   // ราคาขายปกติขณะขาย (ก่อนโปร)
+  
+  // เก็บ Promotion ขณะขาย
+  promotion_quantity  Int?     // จำนวนที่ต้องซื้อเพื่อได้โปร (เช่น ซื้อ 3)
+  promotion_price     Float?   // ราคาโปรโมชั่น (เช่น 3 ขวด 100 บาท)
+  has_promotion       Boolean  @default(false) // มีใช้โปรหรือไม่
+  
+  totalAmount         Float    // ยอดรวมที่ขาย
+  totalCost           Float?   // ต้นทุนรวม
+  
+  createdAt           DateTime @default(now())
+  isDelivery          Boolean  @default(false)
+  note                String?  // หมายเหตุ
   
 
   product         Product  @relation(fields: [productID], references: [id], onDelete: Cascade)

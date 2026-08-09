@@ -11,3 +11,10 @@ export const CreateOrderSchema = z.object({
 })
 
 export type CreateOrderRequest = z.infer<typeof CreateOrderSchema>
+
+export const OrderQuerySchema = z.object({
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+})
+
+export type OrderQuery = z.infer<typeof OrderQuerySchema>

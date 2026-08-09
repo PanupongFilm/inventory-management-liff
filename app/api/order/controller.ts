@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { OrderService } from './service'
-import { CreateOrderSchema } from './type'
+import { CreateOrderSchema, OrderQuerySchema } from './type'
 
 export class OrderController {
 
@@ -10,6 +10,8 @@ export class OrderController {
       const { searchParams } = new URL(req.url)
       const id = searchParams.get('id')
       const productID = searchParams.get('productID')
+      const startDate = searchParams.get('startDate')
+      const endDate = searchParams.get('endDate')
 
       let orders
 
@@ -24,7 +26,11 @@ export class OrderController {
       } else if (productID) {
         orders = await OrderService.getOrdersByProductId(productID)
       } else {
-        orders = await OrderService.getAllOrders()
+        const query = OrderQuerySchema.parse({
+          startDate,
+          endDate,
+        })
+        orders = await OrderService.getAllOrders(query)
       }
 
       return NextResponse.json(
@@ -36,6 +42,12 @@ export class OrderController {
         { status: 200 }
       )
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { error: 'Validation error', details: error.errors },
+          { status: 400 }
+        )
+      }
       console.error('Error fetching orders:', error)
       return NextResponse.json(
         { error: 'Failed to fetch orders' },
