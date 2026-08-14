@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { format, startOfDay, endOfDay, startOfMonth, endOfMonth, subDays } from 'date-fns'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { format, startOfMonth, endOfMonth, subDays } from 'date-fns'
 import { Button } from '@/app/components/ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/card'
+import { Card, CardContent } from '@/app/components/ui/card'
 import { Badge } from '@/app/components/ui/badge'
 import { Modal } from '@/app/components/ui/modal'
 import { Calendar } from '@/app/components/ui/calendar'
@@ -22,12 +22,8 @@ import {
   AlertCircle,
   ShoppingCart,
   CalendarIcon,
-  Package,
-  DollarSign,
-  Truck,
-  CreditCard,
-  MessageSquare,
   Eye,
+  RefreshCwIcon,
 } from 'lucide-react'
 
 interface OrderProduct {
@@ -155,27 +151,30 @@ export default function OrderManagePage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const latestRequestId = useRef(0)
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted) return
+    if (!dateRange?.from || !dateRange.to) return
+
+    const requestId = ++latestRequestId.current
     setIsLoading(true)
+    setError(null)
     try {
       const params = new URLSearchParams()
-      if (dateRange?.from) {
-        // Set to start of day (00:00:00)
-        const startDate = new Date(dateRange.from)
-        startDate.setHours(0, 0, 0, 0)
-        params.append('startDate', startDate.toISOString())
-      }
-      if (dateRange?.to) {
-        // Set to end of day (23:59:59)
-        const endDate = new Date(dateRange.to)
-        endDate.setHours(23, 59, 59, 999)
-        params.append('endDate', endDate.toISOString())
-      }
+      const startDate = new Date(dateRange.from)
+      startDate.setHours(0, 0, 0, 0)
+      params.append('startDate', startDate.toISOString())
 
-      const response = await fetch(`/api/order?${params}`)
+      const endDate = new Date(dateRange.to)
+      endDate.setHours(23, 59, 59, 999)
+      params.append('endDate', endDate.toISOString())
+
+      const response = await fetch(`/api/order?${params}`, { signal })
       if (!response.ok) throw new Error('Failed to fetch orders')
       const result = await response.json()
+
+      if (requestId !== latestRequestId.current) return
 
       if (result.success && result.data) {
         setOrders(result.data)
@@ -183,10 +182,15 @@ export default function OrderManagePage() {
         console.error('API error:', result.error)
       }
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (requestId !== latestRequestId.current) return
+
       setError('ไม่สามารถโหลดรายการสั่งซื้อ')
       console.error('Failed to fetch orders:', err)
     } finally {
-      setIsLoading(false)
+      if (requestId === latestRequestId.current) {
+        setIsLoading(false)
+      }
     }
   }, [dateRange])
 
@@ -196,7 +200,10 @@ export default function OrderManagePage() {
 
   // Fetch data when date range changes
   useEffect(() => {
-    fetchOrders()
+    const controller = new AbortController()
+    queueMicrotask(() => fetchOrders(controller.signal))
+
+    return () => controller.abort()
   }, [fetchOrders])
 
   const filteredOrders = orders.filter(order =>
@@ -288,11 +295,11 @@ export default function OrderManagePage() {
             <Button
               variant="outline"
               size="sm"
-              className="gap-2 hover:bg-blue-50 hover:text-blue-600 border-blue-200 shrink-0"
+              className="gap-2 hover:bg-emerald-50 hover:text-emerald-600 border-emerald-200"
               onClick={handleRefresh}
               disabled={isLoading}
             >
-              <Search className={cn("size-4", isLoading && "animate-spin")} />
+              <RefreshCwIcon className={cn("size-4", isLoading && "animate-spin")} />
               <span className="hidden sm:inline text-sm">รีเฟรช</span>
             </Button>
           </div>
