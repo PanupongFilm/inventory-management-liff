@@ -3,8 +3,9 @@ import { CreateProductRequest, UpdateProductRequest } from './type'
 
 export class ProductService {
 
-  static async getAllProducts() {
+  static async getAllProducts(isActive?: boolean) {
     return await prisma.product.findMany({
+      where: isActive === undefined ? undefined : { isActive },
       orderBy: {
         createdAt: 'desc',
       },

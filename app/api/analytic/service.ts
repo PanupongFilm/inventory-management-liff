@@ -36,6 +36,9 @@ export class AnalyticService {
       })
 
       const productStock = await tx.product.findMany({
+        where: {
+          isActive: true,
+        },
         select:{
           name: true,
           stock_quantity: true

@@ -10,6 +10,7 @@ export class ProductController {
       const { searchParams } = new URL(req.url)
       const id = searchParams.get('id')
       const name = searchParams.get('name')
+      const isActive = searchParams.get('isActive')
 
       let products
 
@@ -30,7 +31,9 @@ export class ProductController {
           )
         }
       } else {
-        products = await ProductService.getAllProducts()
+        products = await ProductService.getAllProducts(
+          isActive === 'true' ? true : isActive === 'false' ? false : undefined
+        )
       }
 
       return NextResponse.json(

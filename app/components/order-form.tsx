@@ -71,7 +71,7 @@ export default function OrderForm() {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetch('/api/product')
+      const response = await fetch('/api/product?isActive=true')
       if (!response.ok) throw new Error('Failed to fetch products')
       const data = await response.json()
       setProducts(data.data || [])
