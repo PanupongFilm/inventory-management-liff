@@ -1,175 +1,151 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { HttpError, buildDateRange } from '@/lib/http-error'
 import { CreateOrderRequest, OrderQuery } from './type'
+
+/**
+ * Price an order using the product's bundle promotion.
+ * `promotion_quantity` is the bundle size (e.g. 3) and `promotion_price` the
+ * bundle price (e.g. 100). Leftover units are charged at `selling_price`.
+ */
+export function calculateOrderPrice(
+  quantity: number,
+  product: { selling_price: number; promotion_quantity: number; promotion_price: number | null }
+) {
+  const { selling_price, promotion_quantity, promotion_price } = product
+
+  if (promotion_quantity > 0 && promotion_price) {
+    const promotionSets = Math.floor(quantity / promotion_quantity)
+    if (promotionSets > 0) {
+      const remainingItems = quantity % promotion_quantity
+      return {
+        totalAmount: promotionSets * promotion_price + remainingItems * selling_price,
+        hasPromotion: true,
+      }
+    }
+  }
+
+  return { totalAmount: quantity * selling_price, hasPromotion: false }
+}
+
+// The DB pool has a single connection over a high-latency link; give
+// transactions room to wait for it instead of failing at Prisma's defaults
+// (maxWait 2s / timeout 5s).
+const TX_OPTIONS = { maxWait: 10_000, timeout: 15_000 }
+
+const isNotFound = (error: unknown) =>
+  error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025'
 
 export class OrderService {
 
   static async getAllOrders(query?: OrderQuery) {
-    const where: any = {}
-
-    if (query?.startDate) {
-      where.createdAt = { gte: new Date(query.startDate) }
-    }
-
-    if (query?.endDate) {
-      if (where.createdAt) {
-        where.createdAt.lte = new Date(query.endDate)
-      } else {
-        where.createdAt = { lte: new Date(query.endDate) }
-      }
-    }
-
-    return await prisma.order.findMany({
-      where,
-      include: {
-        product: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    return prisma.order.findMany({
+      where: { createdAt: buildDateRange(query?.startDate, query?.endDate) },
+      include: { product: true },
+      orderBy: { createdAt: 'desc' },
     })
   }
 
   static async getOrderById(id: string) {
-    return await prisma.order.findUnique({
+    return prisma.order.findUnique({
       where: { id },
-      include: {
-        product: true,
-      },
+      include: { product: true },
     })
   }
 
   static async getOrdersByProductId(productID: string) {
-    return await prisma.order.findMany({
+    return prisma.order.findMany({
       where: { productID },
-      include: {
-        product: true,
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      include: { product: true },
+      orderBy: { createdAt: 'desc' },
     })
   }
 
   static async createOrder(data: CreateOrderRequest) {
+    try {
+      return await prisma.$transaction(async (tx) => {
+        // Atomic, conditional decrement in ONE round trip: matches only if the
+        // product exists, is active, and still has enough stock at write time,
+        // so concurrent orders can never drive stock negative.
+        const product = await tx.product.update({
+          where: {
+            id: data.productID,
+            isActive: true,
+            stock_quantity: { gte: data.quantity },
+          },
+          data: { stock_quantity: { decrement: data.quantity } },
+        })
+
+        const { totalAmount, hasPromotion } = calculateOrderPrice(data.quantity, product)
+        const unitCost = product.purchase_price
+
+        // Snapshot prices so later product edits don't rewrite sales history
+        return tx.order.create({
+          data: {
+            productID: product.id,
+            quantity: data.quantity,
+            payment_method: data.payment_method,
+            isDelivery: data.isDelivery ?? false,
+            note: data.note ?? null,
+            unit_cost: unitCost,
+            unit_price: totalAmount / data.quantity,
+            selling_price: product.selling_price,
+            promotion_quantity: hasPromotion ? product.promotion_quantity : null,
+            promotion_price: hasPromotion ? product.promotion_price : null,
+            has_promotion: hasPromotion,
+            totalAmount,
+            totalCost: unitCost * data.quantity,
+          },
+          include: { product: true },
+        })
+      }, TX_OPTIONS)
+    } catch (error) {
+      if (isNotFound(error)) {
+        // The conditional update matched nothing — find out why
+        throw await OrderService.explainRejectedOrder(data)
+      }
+      throw error
+    }
+  }
+
+  private static async explainRejectedOrder(data: CreateOrderRequest) {
     const product = await prisma.product.findUnique({
       where: { id: data.productID },
+      select: { name: true, isActive: true, stock_quantity: true },
     })
-
     if (!product) {
-      throw new Error(`Product with ID "${data.productID}" not found`)
+      return new HttpError(404, `Product with ID "${data.productID}" not found`)
     }
-
-    // ตรวจสอบ stock รวมทั้ง stock_quantity และ promotion_quantity
-    const totalStock = product.stock_quantity + product.promotion_quantity
-    if (data.quantity > totalStock) {
-      throw new Error(
-        `Insufficient stock. Available: ${totalStock}, Requested: ${data.quantity}`
-      )
+    if (!product.isActive) {
+      return new HttpError(400, `Product "${product.name}" is not available for sale`)
     }
-
-    let totalAmount = 0
-    let unitPrice = product.selling_price
-    let hasPromotion = false
-
-    // คำนวณราคาตามโปรโมชั่น (ถ้ามี)
-    if (product.promotion_quantity > 0 && product.promotion_price) {
-      const promotionSets = Math.floor(data.quantity / product.promotion_quantity)
-      const remainingItems = data.quantity % product.promotion_quantity
-
-      if (promotionSets > 0) {
-        // มีโปรโมชั่นถูกใช้
-        hasPromotion = true
-        const promotionAmount = promotionSets * product.promotion_price
-        const remainingAmount = remainingItems * product.selling_price
-        totalAmount = promotionAmount + remainingAmount
-      } else {
-        // ซื้อไม่ถึงโปร ขายราคาปกติ
-        totalAmount = data.quantity * product.selling_price
-      }
-
-      // คำนวณราคาขายเฉลี่ยต่อหน่วย (หลังใช้โปร)
-      unitPrice = totalAmount / data.quantity
-
-    } else {
-      // ไม่มีโปรโมชั่น
-      totalAmount = data.quantity * product.selling_price
-    }
-
-    // เก็บ snapshot ของราคาและโปรโมชั่นขณะขาย
-    const unitCost = product.purchase_price
-    const totalCost = unitCost * data.quantity
-
-    // ลด stock โดยลด stock_quantity ก่อน ถ้าไม่พอค่อยลด promotion_quantity
-    let remainingQuantity = data.quantity
-    let newStockQuantity = product.stock_quantity
-    let newPromotionQuantity = product.promotion_quantity
-
-    if (remainingQuantity <= product.stock_quantity) {
-      // stock_quantity เพียงพอ
-      newStockQuantity = product.stock_quantity - remainingQuantity
-    } else {
-      // stock_quantity ไม่พอ ต้องใช้ promotion_quantity ด้วย
-      remainingQuantity -= product.stock_quantity
-      newStockQuantity = 0
-      newPromotionQuantity = product.promotion_quantity - remainingQuantity
-    }
-
-    await prisma.product.update({
-      where: { id: data.productID },
-      data: { 
-        stock_quantity: newStockQuantity,
-        promotion_quantity: newPromotionQuantity,
-      },
-    })
-
-    return await prisma.order.create({
-      data: {
-        productID: data.productID,
-        quantity: data.quantity,
-        payment_method: data.payment_method,
-        isDelivery: data.isDelivery ?? false,
-        note: data.note ?? null,
-        unit_cost: unitCost,
-        unit_price: unitPrice,
-        selling_price: product.selling_price,
-        promotion_quantity: hasPromotion ? product.promotion_quantity : null,
-        promotion_price: hasPromotion ? product.promotion_price : null,
-        has_promotion: hasPromotion,
-        totalAmount,
-        totalCost,
-      },
-      include: {
-        product: true,
-      },
-    })
+    return new HttpError(
+      400,
+      `Insufficient stock. Available: ${product.stock_quantity}, Requested: ${data.quantity}`
+    )
   }
 
   static async deleteOrder(id: string) {
-    const order = await prisma.order.findUnique({
-      where: { id },
-      include: {
-        product: true,
-      },
-    })
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const order = await tx.order.delete({
+          where: { id },
+          include: { product: true },
+        })
 
-    if (!order) {
-      throw new Error(`Order with ID "${id}" not found`)
+        // Return the units to stock atomically
+        const product = await tx.product.update({
+          where: { id: order.productID },
+          data: { stock_quantity: { increment: order.quantity } },
+        })
+
+        return { ...order, product }
+      }, TX_OPTIONS)
+    } catch (error) {
+      if (isNotFound(error)) {
+        throw new HttpError(404, `Order with ID "${id}" not found`)
+      }
+      throw error
     }
-
-    // คืน stock โดยเพิ่มกลับไปที่ stock_quantity
-    // (สมมติว่าคืนไปที่ stock_quantity ไม่ใช่ promotion_quantity)
-    await prisma.product.update({
-      where: { id: order.productID },
-      data: { 
-        stock_quantity: order.product.stock_quantity + order.quantity 
-      },
-    })
-
-    return await prisma.order.delete({
-      where: { id },
-      include: {
-        product: true,
-      },
-    })
   }
 }

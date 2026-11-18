@@ -33,7 +33,7 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./server:/app
+      - ./:/app
     environment:
       DATABASE_URL: postgresql://postgres:password@db:5432/pom_pe
     depends_on:

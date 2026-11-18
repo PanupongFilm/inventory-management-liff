@@ -18,16 +18,20 @@ const sizeClasses = {
 
 export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalProps) {
   React.useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = 'unset'
+    if (!isOpen) return
+
+    // Lock background scroll and allow closing with the Escape key
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
     }
+    document.addEventListener('keydown', onKeyDown)
 
     return () => {
-      document.body.style.overflow = 'unset'
+      document.body.style.overflow = ''
+      document.removeEventListener('keydown', onKeyDown)
     }
-  }, [isOpen])
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 
@@ -40,7 +44,12 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       />
 
       {/* Modal Content */}
-      <div className={`relative bg-white rounded-lg shadow-lg p-6 mx-4 ${sizeClasses[size]} w-full`}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`relative bg-white rounded-lg shadow-lg p-6 mx-4 ${sizeClasses[size]} w-full max-h-[90vh] overflow-y-auto`}
+      >
         {title && (
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-4">{title}</h2>
         )}

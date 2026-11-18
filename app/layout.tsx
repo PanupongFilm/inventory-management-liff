@@ -25,12 +25,9 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="th"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <head>
-        <script src="https://static.line-scdn.net/liff/edge/versions/2.28.0/sdk.js"></script>
-      </head>
       <body className="min-h-full flex flex-col">
         <LiffProvider>{children}</LiffProvider>
       </body>

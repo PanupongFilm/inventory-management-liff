@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/app/components/ui/card'
 import { Badge } from '@/app/components/ui/badge'
@@ -14,9 +14,6 @@ import {
   Loader2,
   AlertCircle,
   Package,
-  DollarSign,
-  Tag,
-  Zap,
 } from 'lucide-react'
 
 interface Product {
@@ -63,14 +60,11 @@ export default function ProductPage() {
   const [deleting, setDeleting] = useState(false)
   const [togglingId, setTogglingId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchProducts()
-  }, [])
-
-  const fetchProducts = async () => {
+  // Initial load shows the full-page spinner; later refreshes (after save /
+  // toggle / delete) update the list in place without blanking the page.
+  const fetchProducts = useCallback(async ({ initial = false } = {}) => {
     try {
-      setLoading(true)
-      setError(null)
+      if (initial) setLoading(true)
       const response = await fetch('/api/product')
       if (!response.ok) throw new Error('Failed to fetch products')
       const data = await response.json()
@@ -79,9 +73,13 @@ export default function ProductPage() {
       setError('ไม่สามารถโหลดสินค้า')
       console.error(err)
     } finally {
-      setLoading(false)
+      if (initial) setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => fetchProducts({ initial: true }))
+  }, [fetchProducts])
 
   const filteredProducts = products.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -121,24 +119,19 @@ export default function ProductPage() {
       setError(null)
 
       // Prepare data to send - exclude optional fields if they are undefined
-      const dataToSend: any = {
+      const dataToSend: Record<string, unknown> = {
         name: formData.name,
         purchase_price: formData.purchase_price,
         selling_price: formData.selling_price,
         stock_quantity: formData.stock_quantity || 0,
       }
 
-      // Only include promotion fields if both are set
-      if (
-        formData.promotion_quantity !== undefined &&
-        formData.promotion_quantity > 0 &&
-        formData.promotion_price !== undefined &&
-        formData.promotion_price !== null &&
-        formData.promotion_price > 0
-      ) {
-        dataToSend.promotion_quantity = formData.promotion_quantity
-        dataToSend.promotion_price = formData.promotion_price
-      }
+      // A promotion needs both a bundle size and a bundle price; otherwise clear it
+      // (explicitly sending 0/null so editing can remove an existing promotion)
+      const hasPromotion =
+        (formData.promotion_quantity ?? 0) > 0 && (formData.promotion_price ?? 0) > 0
+      dataToSend.promotion_quantity = hasPromotion ? formData.promotion_quantity : 0
+      dataToSend.promotion_price = hasPromotion ? formData.promotion_price : null
 
       let url = '/api/product'
       if (modalMode === 'edit' && selectedProduct?.id) {
@@ -486,7 +479,7 @@ export default function ProductPage() {
             <div className="flex-1">
               <h3 className="text-lg font-bold text-gray-900">ลบสินค้า?</h3>
               <p className="text-sm text-gray-600 mt-1">
-                คุณกำลังจะลบสินค้า <span className="font-semibold text-gray-900">"{productToDelete?.name}"</span> นี้ออกจากระบบ
+                คุณกำลังจะลบสินค้า <span className="font-semibold text-gray-900">&quot;{productToDelete?.name}&quot;</span> นี้ออกจากระบบ
               </p>
               <p className="text-xs text-red-600 font-semibold mt-2">
                 ⚠️ การกระทำนี้ไม่สามารถยกเลิกได้

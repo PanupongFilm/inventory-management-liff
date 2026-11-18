@@ -22,6 +22,9 @@ export function LiffUserInfo() {
   return (
     <div className="flex items-center gap-3">
       {pictureUrl && (
+        // LINE avatar from LINE's CDN; a plain <img> avoids configuring
+        // next/image remotePatterns for a 32px thumbnail.
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={pictureUrl}
           alt={displayName || 'User'}

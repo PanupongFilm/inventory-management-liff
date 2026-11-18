@@ -20,6 +20,9 @@ interface ProductFormProps {
   onCancel: () => void
 }
 
+const INTEGER_FIELDS = new Set(['stock_quantity', 'promotion_quantity'])
+const PRICE_FIELDS = new Set(['purchase_price', 'selling_price'])
+
 export default function ProductForm({
   formData,
   setFormData,
@@ -29,19 +32,20 @@ export default function ProductForm({
 }: ProductFormProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    const numericFields = ['purchase_price', 'selling_price', 'stock_quantity', 'promotion_quantity', 'promotion_price']
-    
-    let newValue: any = value === '' ? 0 : parseFloat(value)
-    
-    // Convert 0 to undefined for optional promotion fields
-    if ((name === 'promotion_quantity' || name === 'promotion_price') && newValue === 0) {
-      newValue = undefined
+
+    let newValue: string | number | null = value
+    if (INTEGER_FIELDS.has(name)) {
+      // Pack counts are whole numbers; the API rejects decimals
+      newValue = value === '' ? 0 : Math.max(0, Math.trunc(Number(value)) || 0)
+    } else if (name === 'promotion_price') {
+      // Empty / 0 means "no promotion price"
+      const n = parseFloat(value)
+      newValue = n > 0 ? n : null
+    } else if (PRICE_FIELDS.has(name)) {
+      newValue = value === '' ? 0 : parseFloat(value) || 0
     }
-    
-    setFormData({
-      ...formData,
-      [name]: numericFields.includes(name) ? newValue : value,
-    })
+
+    setFormData({ ...formData, [name]: newValue })
   }
 
   const profit = formData.selling_price - formData.purchase_price
@@ -124,6 +128,7 @@ export default function ProductForm({
           onChange={handleChange}
           placeholder="0"
           min="0"
+          step="1"
           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
           required
         />
@@ -146,6 +151,7 @@ export default function ProductForm({
               onChange={handleChange}
               placeholder="0"
               min="0"
+              step="1"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
             />
           </div>

@@ -1,81 +1,75 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { HttpError } from '@/lib/http-error'
 import { CreateProductRequest, UpdateProductRequest } from './type'
+
+/** Map Prisma's unique-name violation to a readable 409. */
+function rethrowDuplicateName(error: unknown, name?: string): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+    throw new HttpError(409, `Product with name "${name}" already exists`)
+  }
+  throw error
+}
 
 export class ProductService {
 
   static async getAllProducts(isActive?: boolean) {
-    return await prisma.product.findMany({
+    return prisma.product.findMany({
       where: isActive === undefined ? undefined : { isActive },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: { createdAt: 'desc' },
     })
   }
 
   static async getProductById(id: string) {
-    return await prisma.product.findUnique({
-      where: { id },
-    })
+    return prisma.product.findUnique({ where: { id } })
   }
 
   static async getProductByName(name: string) {
-    return await prisma.product.findFirst({
-      where: { name },
-    })
+    return prisma.product.findUnique({ where: { name } })
   }
 
+  // The DB has a UNIQUE index on `name`, so we rely on it instead of a
+  // check-then-insert (which costs an extra query and is racy).
   static async createProduct(data: CreateProductRequest) {
-
-    const existing = await prisma.product.findFirst({
-      where: { name: data.name },
-    })
-
-    if (existing) {
-      throw new Error(`Product with name "${data.name}" already exists`)
+    try {
+      return await prisma.product.create({ data })
+    } catch (error) {
+      rethrowDuplicateName(error, data.name)
     }
-
-    return await prisma.product.create({
-      data,
-    })
   }
 
   static async updateProduct(id: string, data: UpdateProductRequest) {
- 
-    if (data.name) {
-      const existing = await prisma.product.findFirst({
-        where: {
-          name: data.name,
-          id: { not: id }, // ไม่รวม product ที่กำลังแก้
-        },
-      })
-
-      if (existing) {
-        throw new Error(`Product with name "${data.name}" already exists`)
-      }
+    try {
+      return await prisma.product.update({ where: { id }, data })
+    } catch (error) {
+      rethrowDuplicateName(error, data.name)
     }
-
-    return await prisma.product.update({
-      where: { id },
-      data,
-    })
   }
 
   static async deleteProduct(id: string) {
-    return await prisma.product.delete({
-      where: { id },
-    })
+    // Orders cascade-delete with their product, which would silently erase
+    // sales history from reports. Require deactivation instead.
+    const orderCount = await prisma.order.count({ where: { productID: id } })
+    if (orderCount > 0) {
+      throw new HttpError(
+        409,
+        `Cannot delete a product with ${orderCount} order(s). Deactivate it instead to keep sales history.`
+      )
+    }
+    return prisma.product.delete({ where: { id } })
   }
 
   static async toggleProductActive(id: string) {
     const product = await prisma.product.findUnique({
       where: { id },
+      select: { isActive: true },
     })
 
     if (!product) {
-      throw new Error(`Product with ID "${id}" not found`)
+      throw new HttpError(404, `Product with ID "${id}" not found`)
     }
 
-    return await prisma.product.update({
+    return prisma.product.update({
       where: { id },
       data: { isActive: !product.isActive },
     })

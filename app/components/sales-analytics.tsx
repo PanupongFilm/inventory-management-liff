@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { format, startOfMonth, endOfMonth, subDays } from "date-fns"
 import {
-  CalendarIcon,
   TrendingDownIcon,
   ShoppingCartIcon,
   PackageIcon,
@@ -19,13 +17,8 @@ import type { DateRange } from "react-day-picker"
 
 import { cn } from "@/app/lib/utils"
 import { Button } from "@/app/components/ui/button"
-import { Calendar } from "@/app/components/ui/calendar"
 import { Card, CardContent } from "@/app/components/ui/card"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/app/components/ui/popover"
+import { DateRangePicker, formatDateRange } from "@/app/components/date-range-picker"
 import { Badge } from "@/app/components/ui/badge"
 import { Separator } from "@/app/components/ui/separator"
 
@@ -151,89 +144,6 @@ function KpiCard({ title, value, subtitle, icon, accent, trend }: KpiCardProps) 
   )
 }
 
-// ── Date Range Picker ─────────────────────────────────────────────────────────
-function DateRangePicker({
-  date,
-  onDateChange,
-}: {
-  date: DateRange | undefined
-  onDateChange: (range: DateRange | undefined) => void
-}) {
-  const [open, setOpen] = React.useState(false)
-
-  const label = React.useMemo(() => {
-    if (date?.from && date?.to) {
-      return `${format(date.from, "d MMM yyyy")} — ${format(date.to, "d MMM yyyy")}`
-    }
-    if (date?.from) return format(date.from, "d MMM yyyy")
-    return "เลือกช่วงวันที่"
-  }, [date])
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "h-11 w-full justify-start gap-2.5 rounded-lg border-emerald-200 bg-white hover:bg-emerald-50 px-4",
-            "font-medium text-foreground",
-            !date && "text-muted-foreground"
-          )}
-        >
-          <CalendarIcon className="size-4 shrink-0 text-emerald-600" />
-          <span className="truncate text-sm">{label}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 border-emerald-200 bg-white shadow-lg" align="start" side="bottom">
-        <div className="p-4">
-          <Calendar
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={onDateChange}
-            numberOfMonths={1}
-            className="rounded-lg"
-          />
-        </div>
-        <Separator className="bg-emerald-100" />
-        <div className="flex gap-2 p-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs border-emerald-200 hover:bg-emerald-50"
-            onClick={() => {
-              const now = new Date()
-              onDateChange({ from: startOfMonth(now), to: endOfMonth(now) })
-              setOpen(false)
-            }}
-          >
-            เดือนนี้
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs border-emerald-200 hover:bg-emerald-50"
-            onClick={() => {
-              const now = new Date()
-              onDateChange({ from: subDays(now, 6), to: now })
-              setOpen(false)
-            }}
-          >
-            7 วันล่าสุด
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
-            onClick={() => setOpen(false)}
-          >
-            เสร็จสิ้น
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 // ── Payment Method Breakdown ──────────────────────────────────────────────────
 const PAYMENT_COLORS = [
   "var(--chart-1)",
@@ -247,12 +157,12 @@ const PAYMENT_META: Record<string, { label: string; icon: React.ReactNode }> = {
     label: "เงินสด",
     icon: <BanknoteIcon className="size-4" />,
   },
-  TRANSFER: {
-    label: "โอนเงิน",
+  SCAN: {
+    label: "สแกนจ่าย",
     icon: <WalletIcon className="size-4" />,
   },
-  CREDIT: {
-    label: "บัตรเครดิต",
+  THAI_HELP: {
+    label: "ไทยช่วยไทย",
     icon: <ReceiptIcon className="size-4" />,
   },
 }
@@ -420,7 +330,7 @@ function StockList({
   items: { name: string; stock_quantity: number }[]
 }) {
   const totalStock = items.reduce((s, i) => s + i.stock_quantity, 0)
-  const maxStock = Math.max(...items.map((i) => i.stock_quantity))
+  const maxStock = Math.max(0, ...items.map((i) => i.stock_quantity))
 
   return (
     <div className="space-y-4">
@@ -440,7 +350,7 @@ function StockList({
         <div className="rounded-lg bg-accent/30 p-3 text-center border border-primary/20">
           <p className="text-xs text-accent-foreground font-medium">เฉลี่ย</p>
           <p className="text-lg font-bold tabular-nums text-primary mt-1">
-            {formatNumber(Math.round(totalStock / items.length))}
+            {formatNumber(items.length > 0 ? Math.round(totalStock / items.length) : 0)}
           </p>
         </div>
       </div>
@@ -449,7 +359,7 @@ function StockList({
 
       <div className="space-y-3">
         {items.map((item) => {
-          const pct = Math.min((item.stock_quantity / maxStock) * 100, 100)
+          const pct = maxStock > 0 ? Math.min((item.stock_quantity / maxStock) * 100, 100) : 0
           const status =
             pct >= 60 ? "good" : pct >= 30 ? "warn" : "critical"
           const barColor =
@@ -525,7 +435,11 @@ export default function SalesAnalytics() {
     productStock: [],
   })
 
-  const fetchAnalytics = React.useCallback(async () => {
+  const latestRequestId = React.useRef(0)
+
+  const fetchAnalytics = React.useCallback(async (signal?: AbortSignal) => {
+    if (signal?.aborted) return
+    const requestId = ++latestRequestId.current
     setIsLoading(true)
     try {
       const params = new URLSearchParams()
@@ -534,16 +448,18 @@ export default function SalesAnalytics() {
         const startDate = new Date(dateRange.from)
         startDate.setHours(0, 0, 0, 0)
         params.append('startDate', startDate.toISOString())
-      }
-      if (dateRange?.to) {
-        // Set to end of day (23:59:59)
-        const endDate = new Date(dateRange.to)
+
+        // Only a start day picked => report that single day
+        const endDate = new Date(dateRange.to ?? dateRange.from)
         endDate.setHours(23, 59, 59, 999)
         params.append('endDate', endDate.toISOString())
       }
 
-      const response = await fetch(`/api/analytic?${params}`)
+      const response = await fetch(`/api/analytic?${params}`, { signal })
       const result = await response.json()
+
+      // A newer request was started while this one was in flight
+      if (requestId !== latestRequestId.current) return
 
       if (result.success && result.data) {
         setData(result.data)
@@ -551,9 +467,10 @@ export default function SalesAnalytics() {
         console.error('API error:', result.error)
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return
       console.error('Failed to fetch analytics:', error)
     } finally {
-      setIsLoading(false)
+      if (requestId === latestRequestId.current) setIsLoading(false)
     }
   }, [dateRange])
 
@@ -561,9 +478,11 @@ export default function SalesAnalytics() {
     fetchAnalytics()
   }
 
-  // Fetch data when date range changes
+  // Fetch data when date range changes; abort the previous request
   React.useEffect(() => {
-    fetchAnalytics()
+    const controller = new AbortController()
+    queueMicrotask(() => fetchAnalytics(controller.signal))
+    return () => controller.abort()
   }, [fetchAnalytics])
 
   const profitMargin =
@@ -638,7 +557,9 @@ export default function SalesAnalytics() {
             <KpiCard
               title="ต้นทุนรวม"
               value={formatCurrency(data.totalCost)}
-              subtitle={`ต่อชิ้น ${formatCurrency(Math.round(data.totalCost / data.totalQuantitySold))}`}
+              subtitle={`ต่อชิ้น ${formatCurrency(
+                data.totalQuantitySold > 0 ? Math.round(data.totalCost / data.totalQuantitySold) : 0
+              )}`}
               icon={<TrendingDownIcon className="size-5" />}
               accent="amber"
             />
@@ -692,8 +613,8 @@ export default function SalesAnalytics() {
         {/* ── Footer ─────────────────────────────────────────────────── */}
         <Separator className="my-4 bg-emerald-100" />
         <p className="text-center text-xs text-muted-foreground">
-          {dateRange?.from && dateRange?.to
-            ? `ข้อมูลระหว่าง ${format(dateRange.from, "d MMMM yyyy")} — ${format(dateRange.to, "d MMMM yyyy")}`
+          {dateRange?.from
+            ? `ข้อมูลระหว่าง ${formatDateRange(dateRange, "d MMMM yyyy")}`
             : "กรุณาเลือกช่วงวันที่"}
         </p>
       </main>

@@ -1,106 +1,103 @@
 import { prisma } from '@/lib/prisma'
 import { AnalyticQuery, SalesAnalytic } from './type'
 
+interface AnalyticRow {
+  total_quantity: number
+  total_revenue: number
+  total_cost: number
+  total_orders: number
+  by_payment: { method: string; quantity: number; revenue: number; order_count: number }[]
+  by_product: { name: string; quantity: number; revenue: number }[]
+  product_stock: { name: string; stock_quantity: number }[]
+}
+
+/**
+ * `createdAt` is `TIMESTAMP(3)` (no time zone) and Prisma stores it in UTC,
+ * so compare against the UTC wall-clock value: "YYYY-MM-DD HH:MM:SS.mmm".
+ */
+function toUtcTimestamp(iso?: string | null) {
+  if (!iso) return null
+  return new Date(iso).toISOString().replace('T', ' ').replace('Z', '')
+}
+
 export class AnalyticService {
 
+  /**
+   * All figures are computed in a single SQL statement (one DB round trip).
+   * The production pool is `connection_limit=1` over a high-latency link, so
+   * the number of round trips — not the amount of work — dominates latency.
+   * Legacy orders without a cost snapshot fall back to the current cost.
+   */
   static async getSalesAnalytic(query: AnalyticQuery): Promise<SalesAnalytic> {
-    const where: any = {}
+    const start = toUtcTimestamp(query.startDate)
+    const end = toUtcTimestamp(query.endDate)
 
-    if (query.startDate) {
-      where.createdAt = { gte: new Date(query.startDate) }
-    }
+    const [row] = await prisma.$queryRaw<AnalyticRow[]>`
+      WITH filtered AS (
+        SELECT
+          o."quantity",
+          o."totalAmount",
+          o."payment_method",
+          o."productID",
+          p."name" AS product_name,
+          COALESCE(o."totalCost", p."purchase_price" * o."quantity") AS cost
+        FROM "Order" o
+        JOIN "Product" p ON p."id" = o."productID"
+        WHERE (${start}::timestamp IS NULL OR o."createdAt" >= ${start}::timestamp)
+          AND (${end}::timestamp IS NULL OR o."createdAt" <= ${end}::timestamp)
+      )
+      SELECT
+        (SELECT COALESCE(SUM("quantity"), 0)::int      FROM filtered) AS total_quantity,
+        (SELECT COALESCE(SUM("totalAmount"), 0)::float8 FROM filtered) AS total_revenue,
+        (SELECT COALESCE(SUM(cost), 0)::float8          FROM filtered) AS total_cost,
+        (SELECT COUNT(*)::int                           FROM filtered) AS total_orders,
+        (SELECT COALESCE(json_agg(t), '[]'::json) FROM (
+          SELECT "payment_method"::text AS method,
+                 SUM("quantity")::int AS quantity,
+                 SUM("totalAmount")::float8 AS revenue,
+                 COUNT(*)::int AS order_count
+          FROM filtered GROUP BY "payment_method"
+        ) t) AS by_payment,
+        (SELECT COALESCE(json_agg(t), '[]'::json) FROM (
+          SELECT product_name AS name,
+                 SUM("quantity")::int AS quantity,
+                 SUM("totalAmount")::float8 AS revenue
+          FROM filtered GROUP BY "productID", product_name
+        ) t) AS by_product,
+        (SELECT COALESCE(json_agg(t ORDER BY t.name), '[]'::json) FROM (
+          SELECT "name" AS name, "stock_quantity" AS stock_quantity
+          FROM "Product" WHERE "isActive" = true
+        ) t) AS product_stock
+    `
 
-    if (query.endDate) {
-      if (where.createdAt) {
-        where.createdAt.lte = new Date(query.endDate)
-      } else {
-        where.createdAt = { lte: new Date(query.endDate) }
+    const paymentMethodBreakdown: SalesAnalytic['paymentMethodBreakdown'] = {}
+    for (const r of row.by_payment) {
+      paymentMethodBreakdown[r.method] = {
+        quantity: r.quantity,
+        revenue: r.revenue,
+        orderCount: r.order_count,
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const aggregateData = await tx.order.aggregate({
-        where,
-        _sum: {
-          quantity: true,
-          totalAmount: true,
-        },
-        _count: true,
-      })
+    const productBreakdown: SalesAnalytic['productBreakdown'] = {}
+    for (const r of row.by_product) {
+      productBreakdown[r.name] = { quantity: r.quantity, revenue: r.revenue }
+    }
 
-      const orders = await tx.order.findMany({
-        where,
-        include: {
-          product: true,
-        },
-      })
-
-      const productStock = await tx.product.findMany({
-        where: {
-          isActive: true,
-        },
-        select:{
-          name: true,
-          stock_quantity: true
-        }
-      });
-
-      return { aggregateData, orders, productStock }
-    })
-
-    const totalQuantitySold = result.aggregateData._sum.quantity || 0
-    const totalRevenue = result.aggregateData._sum.totalAmount || 0
-    const totalOrders = result.aggregateData._count
-
-    let paymentMethodBreakdown: any = {}
-    let productBreakdown: any = {}
-    let totalCost = 0;
-
-    result.orders.forEach((order) => {
-      const paymentMethod = order.payment_method
-      if (!paymentMethodBreakdown[paymentMethod]) {
-        paymentMethodBreakdown[paymentMethod] = {
-          quantity: 0,
-          revenue: 0,
-          orderCount: 0,
-        }
-      }
-      paymentMethodBreakdown[paymentMethod].quantity += order.quantity
-      paymentMethodBreakdown[paymentMethod].revenue += order.totalAmount
-      paymentMethodBreakdown[paymentMethod].orderCount += 1
-
-      const productName = order.product.name
-      if (!productBreakdown[productName]) {
-        productBreakdown[productName] = {
-          quantity: 0,
-          revenue: 0,
-        }
-      }
-      productBreakdown[productName].quantity += order.quantity
-      productBreakdown[productName].revenue += order.totalAmount
-
-      // ใช้ totalCost ที่เก็บไว้ หรือคำนวณจากราคาปัจจุบันถ้าไม่มี (Order เก่า)
-      if (order.totalCost != null) {
-        totalCost += order.totalCost
-      } else {
-        // Fallback สำหรับ Order เก่าที่ไม่มี totalCost
-        totalCost += order.product.purchase_price * order.quantity
-      }
-    })
-
-    const profit = totalRevenue - totalCost
-    const averageSalePerOrder = totalOrders > 0 ? totalRevenue / totalOrders : 0
+    const totalRevenue = row.total_revenue
+    const totalCost = row.total_cost
+    const totalOrders = row.total_orders
 
     return {
-      totalQuantitySold,
+      totalQuantitySold: row.total_quantity,
       totalCost,
       totalRevenue,
-      profit,
-      averageSalePerOrder,
+      profit: totalRevenue - totalCost,
+      averageSalePerOrder: totalOrders > 0 ? totalRevenue / totalOrders : 0,
       totalOrders,
       paymentMethodBreakdown,
       productBreakdown,
-      productStock: result.productStock
+      productStock: row.product_stock,
     }
   }
 }

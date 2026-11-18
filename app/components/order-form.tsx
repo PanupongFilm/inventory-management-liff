@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/app/components/ui/card'
@@ -31,15 +31,17 @@ interface Product {
   isActive: boolean
 }
 
+type PaymentMethod = 'CASH' | 'SCAN' | 'THAI_HELP'
+
 interface OrderFormData {
   productId: string
   quantity: number
-  paymentMethod: 'CASH' | 'SCAN' | 'THAI_HELP'
+  paymentMethod: PaymentMethod
   isDelivery: boolean
   note?: string
 }
 
-const PAYMENT_METHODS = [
+const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: typeof Banknote }[] = [
   { value: 'CASH', label: 'เงินสด', icon: Banknote },
   { value: 'SCAN', label: 'สแกนจ่าย', icon: ScanQrCode },
   { value: 'THAI_HELP', label: 'ไทยช่วยไทย', icon: HeartHandshake },
@@ -63,25 +65,34 @@ export default function OrderForm() {
     note: '',
   })
 
-  useEffect(() => {
-    fetchProducts()
-  }, [])
-
-  const fetchProducts = async () => {
+  // `initial` shows the full-page spinner; otherwise the list refreshes in place
+  const fetchProducts = useCallback(async ({ initial = false } = {}) => {
     try {
-      setLoading(true)
-      setError(null)
+      if (initial) setLoading(true)
       const response = await fetch('/api/product?isActive=true')
       if (!response.ok) throw new Error('Failed to fetch products')
       const data = await response.json()
-      setProducts(data.data || [])
+      const list: Product[] = data.data || []
+      setProducts(list)
+
+      // Keep the chosen quantity within the latest stock
+      setFormData(prev => {
+        const p = list.find(item => item.id === prev.productId)
+        if (!p) return prev
+        const quantity = Math.max(1, Math.min(prev.quantity, p.stock_quantity))
+        return quantity === prev.quantity ? prev : { ...prev, quantity }
+      })
     } catch (err) {
       setError('ไม่สามารถโหลดสินค้า')
       console.error(err)
     } finally {
-      setLoading(false)
+      if (initial) setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    queueMicrotask(() => fetchProducts({ initial: true }))
+  }, [fetchProducts])
 
   const selectedProduct = products.find(p => p.id === formData.productId)
   const filteredProducts = products
@@ -90,24 +101,17 @@ export default function OrderForm() {
       p.name.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+  // Preview only — the server recalculates the authoritative total.
+  // Bundles of `promotion_quantity` cost `promotion_price`; the rest are full price.
   const calculateTotalAmount = () => {
     if (!selectedProduct) return 0
-    
-    let totalAmount = 0
-    if (selectedProduct.promotion_quantity !== 0 && selectedProduct.promotion_price) {
-      // formData.quantity คือจำนวนแพ็ค
-      const promotionCheck = formData.quantity % selectedProduct.promotion_quantity
-      if (promotionCheck === 0) {
-        totalAmount = selectedProduct.promotion_price * (formData.quantity / selectedProduct.promotion_quantity)
-      } else {
-        const withoutPromotionAmount = promotionCheck * selectedProduct.selling_price
-        const promotionAmount = ((formData.quantity - promotionCheck) / selectedProduct.promotion_quantity) * selectedProduct.promotion_price
-        totalAmount = withoutPromotionAmount + promotionAmount
-      }
-    } else {
-      totalAmount = formData.quantity * selectedProduct.selling_price
+    const { promotion_quantity, promotion_price, selling_price } = selectedProduct
+    if (promotion_quantity > 0 && promotion_price) {
+      const sets = Math.floor(formData.quantity / promotion_quantity)
+      const rest = formData.quantity % promotion_quantity
+      return sets * promotion_price + rest * selling_price
     }
-    return totalAmount
+    return formData.quantity * selling_price
   }
 
   const totalAmount = calculateTotalAmount()
@@ -123,7 +127,13 @@ export default function OrderForm() {
       setSubmitting(true)
       setError(null)
 
-      const payload: any = {
+      const payload: {
+        productID: string
+        quantity: number
+        payment_method: PaymentMethod
+        isDelivery: boolean
+        note?: string
+      } = {
         productID: formData.productId,
         quantity: formData.quantity,
         payment_method: formData.paymentMethod,
@@ -141,22 +151,23 @@ export default function OrderForm() {
         body: JSON.stringify(payload),
       })
 
+      const result = await response.json()
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || errorData.message || 'Failed to create order')
+        throw new Error(result.error || result.message || 'Failed to create order')
       }
 
-      // Show success modal
+      // Show success modal with the server-calculated total
       setSuccessOrderData({
         productName: selectedProduct?.name || '',
         quantity: formData.quantity,
-        totalAmount,
+        totalAmount: result.data?.totalAmount ?? totalAmount,
       })
       setShowSuccessModal(true)
 
-      // Reset form after 2 seconds
+      // Reset form after 2 seconds (keep `submitting` true until then to block double submits)
       setTimeout(() => {
         setShowSuccessModal(false)
+        setSubmitting(false)
         router.push('/order')
         setFormData({
           productId: '',
@@ -169,8 +180,9 @@ export default function OrderForm() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด')
       console.error(err)
-    } finally {
       setSubmitting(false)
+      // Stock may have changed (e.g. another sale) — show the current numbers
+      void fetchProducts()
     }
   }
 
@@ -240,11 +252,12 @@ export default function OrderForm() {
                     <button
                       key={product.id}
                       type="button"
+                      disabled={product.stock_quantity <= 0}
                       onClick={() => {
                         setFormData(prev => ({ ...prev, productId: product.id, quantity: 1 }))
                         setSearchTerm('')
                       }}
-                      className={`p-3 text-left rounded-lg border-2 transition-all flex flex-col ${
+                      className={`p-3 text-left rounded-lg border-2 transition-all flex flex-col disabled:opacity-50 disabled:cursor-not-allowed ${
                         formData.productId === product.id
                           ? 'border-green-500 bg-green-50'
                           : 'border-gray-200 hover:border-green-300 bg-white'
@@ -388,7 +401,7 @@ export default function OrderForm() {
                     key={method.value}
                     type="button"
                     onClick={() =>
-                      setFormData(prev => ({ ...prev, paymentMethod: method.value as any }))
+                      setFormData(prev => ({ ...prev, paymentMethod: method.value }))
                     }
                     className={`p-2 sm:p-3 rounded-lg border-2 transition-all text-xs sm:text-sm font-medium flex flex-col items-center gap-1 ${
                       formData.paymentMethod === method.value

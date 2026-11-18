@@ -1,18 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { format, startOfMonth, endOfMonth, subDays } from 'date-fns'
 import { Button } from '@/app/components/ui/button'
 import { Card, CardContent } from '@/app/components/ui/card'
 import { Badge } from '@/app/components/ui/badge'
 import { Modal } from '@/app/components/ui/modal'
-import { Calendar } from '@/app/components/ui/calendar'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/app/components/ui/popover'
 import { Separator } from '@/app/components/ui/separator'
+import { DateRangePicker, formatDateRange } from '@/app/components/date-range-picker'
 import { cn } from '@/app/lib/utils'
 import type { DateRange } from 'react-day-picker'
 import {
@@ -21,7 +15,6 @@ import {
   Loader2,
   AlertCircle,
   ShoppingCart,
-  CalendarIcon,
   Eye,
   RefreshCwIcon,
 } from 'lucide-react'
@@ -56,86 +49,6 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   THAI_HELP: 'ไทยช่วยไทย',
 }
 
-function DateRangePicker({
-  date,
-  onDateChange,
-}: {
-  date: DateRange | undefined
-  onDateChange: (range: DateRange | undefined) => void
-}) {
-  const [open, setOpen] = useState(false)
-
-  const label = date?.from
-    ? date?.to && date?.from !== date?.to
-      ? `${format(date.from, 'd MMM yyyy')} — ${format(date.to, 'd MMM yyyy')}`
-      : format(date.from, 'd MMM yyyy')
-    : 'เลือกช่วงวันที่'
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={cn(
-            "h-11 w-full sm:w-auto justify-start gap-2.5 rounded-lg border-blue-200 bg-white hover:bg-blue-50 px-4",
-            "font-medium text-foreground",
-            !date && "text-muted-foreground"
-          )}
-        >
-          <CalendarIcon className="size-4 shrink-0 text-blue-600" />
-          <span className="truncate text-sm">{label}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0 border-blue-200 bg-white shadow-lg" align="start" side="bottom">
-        <div className="p-4">
-          <Calendar
-            mode="range"
-            defaultMonth={date?.from}
-            selected={date}
-            onSelect={onDateChange}
-            numberOfMonths={1}
-            className="rounded-lg"
-          />
-        </div>
-        <Separator className="bg-blue-100" />
-        <div className="flex gap-2 p-3">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs border-blue-200 hover:bg-blue-50"
-            onClick={() => {
-              const now = new Date()
-              onDateChange({ from: startOfMonth(now), to: endOfMonth(now) })
-              setOpen(false)
-            }}
-          >
-            เดือนนี้
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs border-blue-200 hover:bg-blue-50"
-            onClick={() => {
-              const now = new Date()
-              onDateChange({ from: subDays(now, 6), to: now })
-              setOpen(false)
-            }}
-          >
-            7 วันล่าสุด
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-            onClick={() => setOpen(false)}
-          >
-            เสร็จสิ้น
-          </Button>
-        </div>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
 export default function OrderManagePage() {
   const now = new Date()
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -155,7 +68,7 @@ export default function OrderManagePage() {
 
   const fetchOrders = useCallback(async (signal?: AbortSignal) => {
     if (signal?.aborted) return
-    if (!dateRange?.from || !dateRange.to) return
+    if (!dateRange?.from) return
 
     const requestId = ++latestRequestId.current
     setIsLoading(true)
@@ -166,7 +79,7 @@ export default function OrderManagePage() {
       startDate.setHours(0, 0, 0, 0)
       params.append('startDate', startDate.toISOString())
 
-      const endDate = new Date(dateRange.to)
+      const endDate = new Date(dateRange.to ?? dateRange.from)
       endDate.setHours(23, 59, 59, 999)
       params.append('endDate', endDate.toISOString())
 
@@ -318,11 +231,14 @@ export default function OrderManagePage() {
         {/* Date Picker */}
         <section>
           <label className="block text-sm font-medium text-gray-700 mb-2">ช่วงเวลาที่ดูข้อมูล:</label>
-          <DateRangePicker date={dateRange} onDateChange={setDateRange} />
+          <DateRangePicker
+            date={dateRange}
+            onDateChange={setDateRange}
+            tone="blue"
+            className="sm:w-auto"
+          />
           <p className="text-xs text-gray-600 mt-2">
-            {dateRange?.from && dateRange?.to
-              ? `${format(dateRange.from, 'd MMMM yyyy')} — ${format(dateRange.to, 'd MMMM yyyy')}`
-              : 'กรุณาเลือกช่วงวันที่'}
+            {formatDateRange(dateRange, 'd MMMM yyyy') ?? 'กรุณาเลือกช่วงวันที่'}
           </p>
         </section>
 
@@ -546,7 +462,7 @@ export default function OrderManagePage() {
             <div className="flex-1">
               <h3 className="text-lg font-bold text-gray-900">ลบออร์เดอร์?</h3>
               <p className="text-sm text-gray-600 mt-1">
-                คุณกำลังจะลบออร์เดอร์สินค้า <span className="font-semibold text-gray-900">"{orderToDelete?.product.name}"</span> นี้
+                คุณกำลังจะลบออร์เดอร์สินค้า <span className="font-semibold text-gray-900">&quot;{orderToDelete?.product.name}&quot;</span> นี้
               </p>
               <p className="text-xs text-red-600 font-semibold mt-2">
                 ⚠️ การกระทำนี้ไม่สามารถยกเลิกได้

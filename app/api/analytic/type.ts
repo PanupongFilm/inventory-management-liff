@@ -1,9 +1,7 @@
 import { z } from 'zod'
+import { DateRangeQuerySchema } from '@/lib/http-error'
 
-export const AnalyticQuerySchema = z.object({
-  startDate: z.string().optional().nullable(),
-  endDate: z.string().optional().nullable(),
-})
+export const AnalyticQuerySchema = DateRangeQuerySchema
 
 export type AnalyticQuery = z.infer<typeof AnalyticQuerySchema>
 
